@@ -1,5 +1,5 @@
 # MySQLi
-**Time** and **Boolean** based SQLi for **MySQL** and **PostgreSQL**
+**Time** and **Boolean** based SQLi for **MySQL**,  **PostgreSQL** and **SQLite**
 
 Ideal for those cases in which [sqlmap](https://github.com/sqlmapproject/sqlmap) is not working properly
 

