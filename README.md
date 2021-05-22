@@ -11,7 +11,7 @@
 ## Usage
 Set the database and SQLi type, the strings that go before and after the query and the sleep time if Time based if being used
 ```python
-database = Database.PostgreSQL
+database = DBType.PostgreSQL
 sqlitype = SQLiType.Boolean
 PRE = "' or"
 POST = '-- -'
