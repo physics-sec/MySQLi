@@ -20,9 +20,6 @@ sleep_time = 2
 Re-define the `send_req` function.
 ```python
 def send_req(payload):
-    # CHANGE THIS
-    global num_queries
-    num_queries += 1
     # print(payload)
     params = {'pwn': payload}
     cookies = {}
@@ -36,7 +33,6 @@ def send_req(payload):
                      allow_redirects=False,
                      cookies=cookies)
     return r
-
 ```
 
 ## TODO

@@ -38,10 +38,8 @@ sleep_time = 2
 ###############################
 
 
+# CHANGE THIS
 def send_req(payload):
-    # CHANGE THIS
-    global num_queries
-    num_queries += 1
     # print(payload)
     params = {'pwn': payload}
     cookies = {}
@@ -121,6 +119,8 @@ class Database():
             compare_value = int(r.headers['Content-Length'])
 
     def query_equals_true(self, payload):
+        global num_queries
+        num_queries += 1
         if sqlitype == SQLiType.Time:
             payload = self.add_sleep(payload)
         payload = f'{PRE} {payload} {POST}'
