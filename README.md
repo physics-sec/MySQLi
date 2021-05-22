@@ -34,7 +34,17 @@ def send_req(payload):
                      cookies=cookies)
     return r
 ```
+Optionally, you might want to re-define the `check_if_true` function to customize the detection of "true" and "false" queries.  
+The _compare_value_ variable is the minimum response time of "true" queries in Time based and the Content-Length of "true" queries if Boolean based.
+```python
+def check_if_true(r, time_elapsed):
+    if sqlitype == SQLiType.Time:
+        return time_elapsed >= compare_value
+    else:
+        return int(r.headers['Content-Length']) == compare_value
+```
 
 ## TODO
 - Add Time based to MSSQL
 - Add more DBs
+- Add threads?
