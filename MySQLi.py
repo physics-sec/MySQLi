@@ -281,7 +281,7 @@ class MySQL(Database):
         self.db_name = 'MySQL'
 
     def select_row(self, row_num):
-        return f'{self.query} limit {row_num},1'
+        return f'{self.query} limit {row_num-1},1'
 
     def add_sleep(self, query):
         return f'if({query},sleep({sleep_time}),0)'
