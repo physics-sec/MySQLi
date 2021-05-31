@@ -259,7 +259,7 @@ class PostgreSQL(Database):
         self.db_name = 'PostgreSQL'
 
     def select_row(self, row_num):
-        return f'{self.query} limit 1 offset {row_num}'
+        return f'{self.query} limit 1 offset {row_num-1}'
 
     def add_sleep(self, query):
         return f'({query} AND 1=(select 1 from pg_sleep({sleep_time})))'
