@@ -41,10 +41,11 @@ def send_req(payload):
 Optionally, you might want to re-define the `check_if_true` function to customize the detection of "true" and "false" queries.  
 The _compare_value_ variable is the minimum response time of "true" queries in Time based and the Content-Length of "true" queries if Boolean based.
 ```python
-def check_if_true(r, time_elapsed):
-    if sqlitype == SQLiType.Time:
+def check_if_true(sqlitype, r, time_elapsed):
+    if sqlitype == 'time':
         return time_elapsed >= compare_value
     else:
+        # checking the content length is good enough for most cases
         return int(r.headers['Content-Length']) == compare_value
 ```
 
